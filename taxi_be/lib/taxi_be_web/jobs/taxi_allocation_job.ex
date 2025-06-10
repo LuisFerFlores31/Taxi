@@ -10,6 +10,7 @@ defmodule TaxiBeWeb.TaxiAllocationJob do
     {:ok, %{request: request}}
   end
 
+  #auxilio
 def compute_ride_fare(request) do
   %{
     "pickup_address" => pickup_address,

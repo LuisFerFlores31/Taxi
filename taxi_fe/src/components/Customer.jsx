@@ -28,6 +28,19 @@ function Customer(props) {
     }).then(resp => resp.json()).then(dataFromPOST => setMsg(dataFromPOST.msg));
   };
 
+  let cancel = () => {
+    fetch(`http://localhost:4000/api/bookings/${bookingId}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        action: "cancel",
+        username: props.username
+      })
+    })
+    .then(resp => resp.json())
+    .then(data => setMsg(data.msg));
+  };
+
   return (
     <div style={{textAlign: "center", borderStyle: "solid"}}>
       Customer: {props.username}
@@ -41,6 +54,7 @@ function Customer(props) {
             onChange={ev => setDropOffAddress(ev.target.value)}
             value={dropOffAddress}/>
         <Button onClick={submit} variant="outlined" color="primary">Submit</Button>
+        <Button onClick={cancel} variant="outlined" color="primary">Cancel</Button>
       </div>
       <div style={{backgroundColor: "lightcyan", height: "50px"}}>
         {msg}

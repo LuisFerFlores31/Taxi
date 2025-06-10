@@ -28,19 +28,12 @@ function Customer(props) {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({pickup_address: pickupAddress, dropoff_address: dropOffAddress, username: props.username})
     })
-    .then(
-    // Aqui se esta extrae el bookingId( se usa para cancelar)
-     resp => {
-      const location = resp.headers.get("location");
-      if (location) {
-        const bookingId = location.split("/").pop();
-        setCurrentBookingId(bookingId);
-        setIsBookingActive(true);
-      }
-      return resp.json();
-     }
-    )
-    .then(dataFromPOST => setMsg(dataFromPOST.msg));
+    .then(resp => resp.json())
+    .then(dataFromPOST => {
+      setMsg(dataFromPOST.msg);
+      setCurrentBookingId(dataFromPOST.booking_id);
+      setIsBookingActive(true);
+    });
   };
 
   let cancel = () => {

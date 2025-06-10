@@ -134,8 +134,8 @@ end
   end
 
 
-  def handle_cast({:cancel_booking, msg}, state) do
-    IO.pust("Cancelando la reserva")
+  def handle_cast({:process_cancel, msg}, state) do
+    IO.puts("Cancelando la reserva")
     %{request: %{"username" => customer_username}} = state
     %{"username" => cancelling_customer} = msg
 

@@ -76,7 +76,7 @@ end
       )
     end)
 
-    timer = Process.send_after(self(), TimeOut, 3000) # 90000 = 1.5 minf
+    timer = Process.send_after(self(), TimeOut, 10000) # 90000 = 1.5 minf
 
     {:noreply, %{
       request: request,
@@ -134,17 +134,32 @@ end
   end
 
 
-  def handle_cast({:cancel_booking, _msg}, state) do
-    if state.accepted_taxi do
-      TaxiBeWeb.Endpoint.broadcast(
-        "customer:" <> customer_username,
-        "booking_request",
-        %{msg: "No se puede cancelar, el viaje ya fue tomado por un conductor"}
-      )
+  def handle_cast({:cancel_booking, msg}, state) do
+    IO.pust("Cancelando la reserva")
+    %{request: %{"username" => customer_username}} = state
+    %{"username" => cancelling_customer} = msg
+
+    if state.timer do
+      Process.cancel_timer(state.timer)
     end
 
-    {:noreply, state}
+    # Notificar a todos los drivers que la solicitud fue cancelada
+    Enum.each(state.all_taxis, fn taxi ->
+      TaxiBeWeb.Endpoint.broadcast(
+        "driver:" <> taxi.nickname,
+        "booking_request",
+        %{msg: "Solicitud cancelada por el cliente"}
+      )
+    end)
 
+    # Notificar al customer que la cancelación fue exitosa
+    TaxiBeWeb.Endpoint.broadcast(
+      "customer:" <> customer_username,
+      "booking_request",
+      %{msg: "Reserva cancelada exitosamente"}
+    )
+
+      {:stop, :normal, state}
   end
 
   # def handle_info(TimeOut, state) do
@@ -165,7 +180,7 @@ end
     {:stop, :normal, state}
   end
 
-  def handle_cast({:process_reject, msg}, state) do
+  def handle_cast({:process_reject, _msg}, state) do
     IO.puts("ENTERED REJECTION")
     auxilary(state)
   end

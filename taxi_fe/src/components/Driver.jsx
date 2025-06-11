@@ -23,14 +23,19 @@ function Driver(props) {
     fetch(`http://localhost:4000/api/bookings/${bookingId}`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({action: decision, username: props.username})
+      body: JSON.stringify({
+        action: "decision", 
+        mensaje: decision,
+        username: props.username, 
+        id: bookingId
+      })
     }).then(resp => setVisible(false));
   };
 
   return (
     <div style={{textAlign: "center", borderStyle: "solid"}}>
         Driver: {props.username}
-        <div style={{backgroundColor: "lavender", height: "100px"}}>
+        <div style={{backgroundColor: "lavender", height: "120px"}}>
           {
             visible ?
             <Card variant="outlined" style={{margin: "auto", width: "600px"}}>

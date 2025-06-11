@@ -149,6 +149,4 @@ function Customer(props) {
     </div>
   );
 }
-
-
 export default Customer;

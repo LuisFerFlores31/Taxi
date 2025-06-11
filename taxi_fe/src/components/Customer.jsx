@@ -30,6 +30,7 @@ function Customer(props) {
 
     channel.on("booking_request", dataFromPush => {
       console.log("Received socket message:", dataFromPush);
+      console.log("Received socket message:", dataFromPush);
       setMsg1(dataFromPush.msg);
       
       // Establecer bookingId si viene en el mensaje
@@ -108,7 +109,7 @@ function Customer(props) {
           id: bookingId
         })
       });
-
+  
       const data = await response.json();
       console.log("Cancel response:", data);
       setMsg(data.msg);
@@ -148,5 +149,4 @@ function Customer(props) {
     </div>
   );
 }
-
 export default Customer;

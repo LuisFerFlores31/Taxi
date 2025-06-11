@@ -34,16 +34,17 @@ defmodule TaxiBeWeb.BookingController do
     json(conn, %{msg: "We will process your cancelation"})
   end
 
-  def update(conn, %{"action" => "decision", "mensaje" => mensaje, "username" => username, "id" => id} = msg) do
-    IO.puts("Processing request for #{username} with id: #{id}")
+  def update(conn, %{"action" => "decision", "mensaje" => mensaje, "id" => id} = msg) do
 
-    if mensaje == "accept" do
-      GenServer.cast(String.to_atom(id), {:process_accept, msg})
-    if mensaje == "reject" do
-      GenServer.cast(String.to_atom(id), {:process_reject, msg})
-    end
-    else
-      GenServer.cast(String.to_atom(id), {:ok, msg})
+    cond do
+      mensaje == "accept" ->
+        GenServer.cast(String.to_atom(id), {:process_accept, msg})
+
+      mensaje == "reject" ->
+        GenServer.cast(String.to_atom(id), {:process_reject, msg})
+
+      true ->
+        GenServer.cast(String.to_atom(id), {:ok, msg})
     end
 
     json(conn, %{msg: "We will process your desicion"})

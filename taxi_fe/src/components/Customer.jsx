@@ -1,7 +1,7 @@
 import React, {useEffect, useState, useCallback} from 'react';
 import Button from '@mui/material/Button'
 import socket from '../services/taxi_socket';
-import { TextField } from '@mui/material';
+import { TextField, Box } from '@mui/material';
 
 function Customer(props) {
   let [pickupAddress, setPickupAddress] = useState("Tecnologico de Monterrey, campus Puebla, Mexico");
@@ -31,10 +31,18 @@ function Customer(props) {
     channel.on("booking_request", dataFromPush => {
       console.log("Received socket message:", dataFromPush);
       setMsg1(dataFromPush.msg);
+      
+      // Establecer bookingId si viene en el mensaje
       if (dataFromPush.bookingId) {
         console.log("Setting bookingId from socket:", dataFromPush.bookingId);
         updateBookingId(dataFromPush.bookingId);
       }
+
+      if (dataFromPush.msg.includes("Tu solicitud ha sido cancelada") || dataFromPush.msg.includes("No hay taxis disponibles")){
+        console.log("Booking completed - resetting bookingId");
+        updateBookingId(null);
+      }
+    
     });
 
     channel.join()
@@ -65,20 +73,16 @@ function Customer(props) {
       });
 
       console.log("Response status:", response.status);
-      console.log("Response headers:", Object.fromEntries(response.headers.entries()));
       
-      const location = response.headers.get("Location");
-      console.log("Location header:", location);
-      
-      if (location) {
-        const id = location.split("/").pop();
-        console.log("Extracted bookingId:", id);
-        updateBookingId(id);
-      }
-
       const data = await response.json();
       console.log("Response data:", data);
       setMsg(data.msg);
+      
+      // Usar bookingId del JSON response
+      if (data.booking_id) {
+        console.log("Setting bookingId from response:", data.booking_id);
+        updateBookingId(data.booking_id);
+      }
     } catch (error) {
       console.error("Error submitting booking:", error);
       setMsg("Error al crear la reserva");
@@ -107,35 +111,35 @@ function Customer(props) {
 
       const data = await response.json();
       console.log("Cancel response:", data);
-      setMsg1(data.msg);
-      updateBookingId(null);
+      setMsg(data.msg);
+      
+      // NO resetear bookingId automáticamente - esperar confirmación por WebSocket
     } catch (error) {
       console.error("Error canceling booking:", error);
-      setMsg1("Error al cancelar la reserva");
+      setMsg("Error al cancelar la reserva");
     }
   };
 
   return (
-    <div style={{textAlign: "center", borderStyle: "solid"}}>
+    <div style={{textAlign: "center", borderStyle: "solid", backgroundColor: "white"}}>
       Customer: {props.username}
       <div>
-          <TextField id="outlined-basic" label="Pickup address"
-            fullWidth
-            onChange={ev => setPickupAddress(ev.target.value)}
-            value={pickupAddress}/>
-          <TextField id="outlined-basic" label="Drop off address"
-            fullWidth
-            onChange={ev => setDropOffAddress(ev.target.value)}
-            value={dropOffAddress}/>
+        <TextField id="outlined-basic" label="Pickup address"
+          fullWidth
+          onChange={ev => setPickupAddress(ev.target.value)}
+          value={pickupAddress}/>
+        <TextField id="outlined-basic" label="Drop off address"
+          fullWidth
+          onChange={ev => setDropOffAddress(ev.target.value)}
+          value={dropOffAddress}/>
+      
         <Button onClick={submit} variant="outlined" color="primary">Submit</Button>
-        <Button onClick={cancelBooking} variant="outlined" color="secondary" style={{marginLeft: "10px"}} >
-          Cancelar viaje
-        </Button>
+        <Button onClick={cancelBooking} variant="outlined" color="secondary" style={{marginLeft: "10px"}}>Cancel</Button>
       </div>
-      <div style={{backgroundColor: "lightcyan", height: "50px"}}>
+      <div style={{backgroundColor: "lightcyan", height: "50px", color: 'black'}}>
         {msg}
       </div>
-      <div style={{backgroundColor: "lightblue", height: "50px"}}>
+      <div style={{backgroundColor: "lightblue", height: "50px", color: 'black'}}>
         {msg1}
       </div>
       <div style={{fontSize: "12px", color: "gray"}}>

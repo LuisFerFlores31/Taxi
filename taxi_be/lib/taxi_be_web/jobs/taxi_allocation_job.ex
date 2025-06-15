@@ -7,7 +7,8 @@ defmodule TaxiBeWeb.TaxiAllocationJob do
 
   def init(request) do
     Process.send(self(), :step1, [:nosuspend])
-    {:ok, %{request: request}}
+    {:ok, %{request: request,
+            accepted_taxi: nil}}
   end
 
   #auxilio
@@ -37,14 +38,6 @@ def find_candidate_taxis(%{"pickup_address" => _pickup_address}) do
 end
 
   def handle_info(:step1, %{request: request} = state) do
-
-    # task = Task.async(fn -> find_candidate_taxis(request) end)
-
-    # compute_ride_fare(request)
-    # |> notify_customer_ride_fare()
-
-    # list_of_taxis = Task.await(task) |> Enum.shuffle()
-
     task = Task.async(fn ->
       compute_ride_fare(request)
       |> notify_customer_ride_fare()
@@ -56,15 +49,26 @@ end
 
     IO.inspect(list_of_taxis)
 
-    # # Select a taxi
+    # Select a taxi
     taxi = hd(list_of_taxis)
 
     # Forward request to taxi driver
     %{
       "pickup_address" => pickup_address,
       "dropoff_address" => dropoff_address,
-      "booking_id" => booking_id
+      "booking_id" => booking_id,
+      "username" => customer_username
     } = request
+
+    # Notificar al cliente con el booking_id
+    TaxiBeWeb.Endpoint.broadcast(
+      "customer:" <> customer_username,
+      "booking_request",
+      %{
+        msg: "Solicitud de viaje creada",
+        bookingId: booking_id
+      }
+    )
 
     Enum.each(list_of_taxis, fn taxi ->
       TaxiBeWeb.Endpoint.broadcast(
@@ -77,14 +81,17 @@ end
       )
     end)
 
-    timer = Process.send_after(self(), TimeOut, 90000) # 90000 = 1.5 min
+    timer = Process.send_after(self(), TimeOut, 10000) # 90000 = 1.5 minf
 
     {:noreply, %{
       request: request,
       contacted_taxi: taxi,
       candidates: tl(list_of_taxis),
       timer: timer,
-      all_taxis: list_of_taxis
+      grace_time: nil,
+      grace_expired: false,
+      all_taxis: list_of_taxis,
+      accepted_taxi: nil
     }}
   end
 
@@ -108,7 +115,6 @@ end
     {:noreply, %{state | contacted_taxi: taxi, candidates: tl(list_of_taxis)}}
   end
 
-
   # Caso de que los taxis no acepten
   def handle_info(TimeOut, %{request: request, all_taxis: taxis} = state) do
 
@@ -128,25 +134,22 @@ end
       TaxiBeWeb.Endpoint.broadcast(
         "driver:" <> taxi.nickname,
         "booking_request",
-        %{msg: "Solicitud rechazada"}
+        %{msg: "Solicitud rechazada por inactividad"}
       )
     end)
 
-    {:noreply, %{state | timer: nil}}
+    {:stop, :normal, %{state | timer: nil}}
   end
-
-
-
-  # def handle_info(TimeOut, state) do
-  #   IO.puts("Time OUT!!!")
-  #   auxilary(state)
-  # end
 
   # Caso de que se rechazen a todos los taxis
   def handle_cast({:process_reject, _msg}, %{candidates: []} = state) do
     %{request: %{"username" => customer_username}} = state
+
     IO.puts("Todos los taxis han sido rechazados")
-    Process.cancel_timer(state.timer)
+
+    if state.timer, do: Process.cancel_timer(state.timer)
+    if state.grace_time, do: Process.cancel_timer(state.grace_time)
+
     TaxiBeWeb.Endpoint.broadcast(
       "customer:" <> customer_username,
       "booking_request",
@@ -155,35 +158,122 @@ end
     {:stop, :normal, state}
   end
 
-  def handle_cast({:process_reject, msg}, state) do
+  def handle_cast({:process_reject, _msg}, state) do
     IO.puts("ENTERED REJECTION")
     auxilary(state)
   end
 
   def handle_cast({:process_accept, msg}, state) do
     %{request: %{"username" => customer_username}} = state
-    IO.puts("Inside handle_cast")
-    IO.inspect(state)
-    IO.puts("-------------------")
-    IO.inspect(msg)
     %{"username" => accepting_driver} = msg
-    # %{contacted_taxi: %{nickname: contacted_driver}} = state
-    # if accepting_driver != contacted_driver do
-    #   TaxiBeWeb.Endpoint.broadcast("driver:" <> contacted_driver, "somebody_took_ride", %{msg: "El viaje fue asignado a otro taxi"})
-    # end
+
+    IO.puts("Aceptado, timeOut cancelado")
+
+    if state.timer, do: Process.cancel_timer(state.timer)
 
     Enum.each(state.all_taxis, fn taxi ->
       if taxi.nickname != accepting_driver do
         TaxiBeWeb.Endpoint.broadcast(
           "driver:" <> taxi.nickname,
           "booking_request",
-          %{msg: "Solicitud rechazada"}
+          %{msg: "Solicitud tomada"}
         )
       end
     end)
 
+    grace_time = Process.send_after(self(), GraceTime, 15000)
+
     TaxiBeWeb.Endpoint.broadcast("customer:" <> customer_username, "booking_request", %{msg: "Tu taxi esta en camino y llegara 5 minutos"})
-    {:noreply, state}
+
+    IO.inspect(accepting_driver)
+    {:noreply, %{state | timer: nil,
+      accepted_taxi: %{nickname: accepting_driver},
+      grace_time: grace_time,
+      grace_expired: false
+    }}
+
+  end
+
+  def handle_info(GraceTime, state) do
+    IO.puts("Período de gracia terminado")
+    {:noreply, %{state | grace_expired: true}}
+  end
+
+
+  # Caso de que se rechazen a todos los taxis
+  def handle_cast({:process_cancel, msg}, state) do
+    %{request: %{"username" => customer_username}} = state
+    IO.puts("Solicitud cancelada por el cliente")
+
+
+
+    if state.accepted_taxi != nil do
+      if state.grace_expired do
+        IO.puts("Se cobra cargo de $20")
+          TaxiBeWeb.Endpoint.broadcast(
+            "customer:" <> customer_username,
+            "booking_request",
+            %{msg: "Tu solicitud ha sido cancelada con cargo de $20"}
+          )
+
+        # Notificar al conductor que aceptó
+        TaxiBeWeb.Endpoint.broadcast(
+          "driver:" <> state.accepted_taxi.nickname,
+          "booking_request",
+          %{msg: "El cliente ha cancelado el viaje"}
+        )
+
+        {:stop, :normal, state}
+
+      else
+
+        if state.grace_time, do: Process.cancel_timer(state.grace_time)
+
+        IO.puts("Se cancela sin cargo")
+          TaxiBeWeb.Endpoint.broadcast(
+            "customer:" <> customer_username,
+            "booking_request",
+            %{msg: "Tu solicitud ha sido cancelada sin cargo"}
+          )
+
+        # Notificar al conductor que aceptó
+        TaxiBeWeb.Endpoint.broadcast(
+          "driver:" <> state.accepted_taxi.nickname,
+          "booking_request",
+          %{msg: "El cliente ha cancelado el viaje"}
+        )
+
+        {:stop, :normal, state}
+
+      end
+    else
+
+      if state.timer, do: Process.cancel_timer(state.timer)
+
+        # Notificar al cliente
+      TaxiBeWeb.Endpoint.broadcast(
+        "customer:" <> customer_username,
+        "booking_request",
+        %{msg: "Tu solicitud ha sido cancelada"}
+      )
+
+      # Notificar a todos los conductores
+      Enum.each(state.all_taxis, fn taxi ->
+        TaxiBeWeb.Endpoint.broadcast(
+          "driver:" <> taxi.nickname,
+          "booking_request",
+          %{msg: "Solicitud cancelada por el cliente"}
+        )
+      end)
+
+      {:stop, :normal, state}
+    end
+  end
+
+  def handle_cast({:ok, msg}, state) do
+    IO.puts("ENTERED OK")
+    if state.timer, do: Process.cancel_timer(state.timer)
+    {:stop, :normal, state}
   end
 
   def candidate_taxis() do

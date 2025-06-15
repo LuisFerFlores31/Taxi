@@ -114,7 +114,6 @@ function Customer(props) {
       console.log("Cancel response:", data);
       setMsg(data.msg);
       
-      // NO resetear bookingId automáticamente - esperar confirmación por WebSocket
     } catch (error) {
       console.error("Error canceling booking:", error);
       setMsg("Error al cancelar la reserva");

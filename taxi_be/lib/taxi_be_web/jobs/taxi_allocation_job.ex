@@ -80,7 +80,7 @@ end
       )
     end)
 
-    timer = Process.send_after(self(), TimeOut, 10000) # 90000 = 1.5 minf
+    timer = Process.send_after(self(), TimeOut, 10000) # 10 segundos
 
     {:noreply, %{
       request: request,
@@ -114,7 +114,8 @@ end
     {:noreply, %{state | contacted_taxi: taxi, candidates: tl(list_of_taxis)}}
   end
 
-  # Caso de que los taxis no acepten
+  # Caso de que los taxis no aceptenS
+
   def handle_info(TimeOut, %{request: request, all_taxis: taxis} = state) do
 
     IO.puts("Ningun taxi ha aceptado el viaje")
@@ -127,7 +128,6 @@ end
       %{msg: "No hay taxis disponibles"}
     )
 
-    # Queria que se eliminara el pop-up pero no pude
     # Notificar de la cancelacion por no responder
     Enum.each(taxis, fn taxi ->
       TaxiBeWeb.Endpoint.broadcast(
@@ -190,7 +190,7 @@ end
       grace_time: grace_time,
       grace_expired: false
     }}
-    
+
   end
 
   def handle_info(GraceTime, state) do
@@ -200,11 +200,10 @@ end
 
 
   # Caso de que se rechazen a todos los taxis
+
   def handle_cast({:process_cancel, msg}, state) do
     %{request: %{"username" => customer_username}} = state
     IO.puts("Solicitud cancelada por el cliente")
-
-
 
     if state.accepted_taxi != nil do
       if state.grace_expired do
@@ -220,6 +219,7 @@ end
       else
 
         if state.grace_time, do: Process.cancel_timer(state.grace_time)
+        if state.timer, do: Process.cancel_timer(state.timer)
 
         IO.puts("Se cancela sin cargo")
           TaxiBeWeb.Endpoint.broadcast(

@@ -45,7 +45,7 @@ function Driver(props) {
                 </Typography>
               </CardContent>
               {
-                message === "Solicitud rechazada por inactividad" || message == "Solicitud tomada" || message == "Solicitud cancelada por el cliente" ? (
+                message === "Solicitud rechazada por inactividad" || message == "Solicitud tomada" || message == "Solicitud cancelada por el cliente" || message == "El cliente ha cancelado el viaje" ? (
                   <Button onClick={() => reply("ok")} variant="outlined" color="primary">Ok</Button>
                 ) : (
                   <>

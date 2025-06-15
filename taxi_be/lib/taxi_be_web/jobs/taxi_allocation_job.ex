@@ -190,7 +190,7 @@ end
       grace_time: grace_time,
       grace_expired: false
     }}
-    
+
   end
 
   def handle_info(GraceTime, state) do
@@ -215,6 +215,13 @@ end
             %{msg: "Tu solicitud ha sido cancelada con cargo de $20"}
           )
 
+        # Notificar al conductor que aceptó
+        TaxiBeWeb.Endpoint.broadcast(
+          "driver:" <> state.accepted_taxi.nickname,
+          "booking_request",
+          %{msg: "El cliente ha cancelado el viaje"}
+        )
+
         {:stop, :normal, state}
 
       else
@@ -227,6 +234,13 @@ end
             "booking_request",
             %{msg: "Tu solicitud ha sido cancelada sin cargo"}
           )
+
+        # Notificar al conductor que aceptó
+        TaxiBeWeb.Endpoint.broadcast(
+          "driver:" <> state.accepted_taxi.nickname,
+          "booking_request",
+          %{msg: "El cliente ha cancelado el viaje"}
+        )
 
         {:stop, :normal, state}
 
